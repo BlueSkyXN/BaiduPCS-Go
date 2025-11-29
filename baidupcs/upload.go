@@ -224,6 +224,13 @@ func (pcs *BaiduPCS) UploadCreateSuperFile(uploadid, policy string, fileSize int
 
 // GetRandomPCSHost 随机获取一个可用的pcs地址
 func (pcs *BaiduPCS) GetRandomPCSHost() (pcsError pcserror.Error, pcsHost string) {
+	// 如果配置了多个PCS服务器地址，则使用列表轮询
+	if len(pcs.pcsAddrList) > 1 {
+		pcsHost = pcs.GetNextPCSHostFromList()
+		return
+	}
+
+	// 如果只配置了一个地址或设置了固定PCS地址，保持原有逻辑
 	if pcs.fixPCSAddr {
 		return
 	}

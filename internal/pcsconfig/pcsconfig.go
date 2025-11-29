@@ -49,6 +49,7 @@ type PCSConfig struct {
 	UserAgent      string `json:"user_agent"`           // 浏览器标识
 	PCSUA          string `json:"pcs_ua"`               // PCS浏览器标识
 	PCSAddr        string `json:"pcs_addr"`             // PCS服务器域名
+	PCSAddrList    string `json:"pcs_addr_list"`        // PCS服务器列表(逗号分隔)
 	PanUA          string `json:"pan_ua"`               // PAN浏览器标识
 	SaveDir        string `json:"savedir"`              // 下载储存路径
 	EnableHTTPS    bool   `json:"enable_https"`         // 启用https
@@ -159,6 +160,7 @@ func (c *PCSConfig) init() error {
 	}
 	c.pcs = c.activeUser.BaiduPCS()
 	c.pcs.SetPCSAddr(c.PCSAddr)
+	c.pcs.SetPCSAddrList(c.PCSAddrList)
 
 	// 设置全局User-Agent
 	requester.UserAgent = c.UserAgent

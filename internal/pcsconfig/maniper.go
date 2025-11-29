@@ -224,6 +224,40 @@ func (c *PCSConfig) SetStaticPCSAddr(static bool) {
 	}
 }
 
+// SetPCSAddrList 设置 PCS 服务器列表
+func (c *PCSConfig) SetPCSAddrList(pcsAddrList string) bool {
+	// 清理空白字符
+	pcsAddrList = strings.ReplaceAll(pcsAddrList, " ", "")
+	if pcsAddrList == "" {
+		c.PCSAddrList = ""
+		if c.pcs != nil {
+			c.pcs.SetPCSAddrList("")
+		}
+		return true
+	}
+
+	// 验证每个地址是否合法
+	addrs := strings.Split(pcsAddrList, ",")
+	validAddrs := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		match, _ := regexp.MatchString("^([cd]\\d?\\.)?pcs\\.baidu\\.com", addr)
+		if !match {
+			return false
+		}
+		validAddrs = append(validAddrs, addr)
+	}
+
+	c.PCSAddrList = strings.Join(validAddrs, ",")
+	if c.pcs != nil {
+		c.pcs.SetPCSAddrList(c.PCSAddrList)
+	}
+	return true
+}
+
 // SetEnableHTTPS 设置是否启用https
 func (c *PCSConfig) SetEnableHTTPS(https bool) {
 	c.EnableHTTPS = https

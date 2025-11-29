@@ -7,6 +7,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs/expires/cachemap"
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs/internal/panhome"
@@ -144,6 +145,8 @@ type (
 		accessToken string                // accessToken
 		pcsUA       string
 		pcsAddr     string
+		pcsAddrList []string // PCS服务器列表
+		pcsAddrIdx  int      // 当前PCS服务器索引(用于轮询)
 		panUA       string
 		isSetPanUA  bool
 		fixPCSAddr  bool
@@ -380,6 +383,35 @@ func (pcs *BaiduPCS) SetHTTPS(https bool) {
 
 func (pcs *BaiduPCS) SetStaticPCSAddr(static bool) {
 	pcs.fixPCSAddr = static
+}
+
+// SetPCSAddrList 设置 PCS 服务器列表(逗号分隔)
+func (pcs *BaiduPCS) SetPCSAddrList(addrList string) {
+	if addrList == "" {
+		pcs.pcsAddrList = nil
+		pcs.pcsAddrIdx = 0
+		return
+	}
+	addrs := strings.Split(addrList, ",")
+	validAddrs := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr != "" {
+			validAddrs = append(validAddrs, addr)
+		}
+	}
+	pcs.pcsAddrList = validAddrs
+	pcs.pcsAddrIdx = 0
+}
+
+// GetNextPCSHostFromList 从PCS服务器列表中轮询获取下一个地址
+func (pcs *BaiduPCS) GetNextPCSHostFromList() string {
+	if len(pcs.pcsAddrList) == 0 {
+		return ""
+	}
+	addr := pcs.pcsAddrList[pcs.pcsAddrIdx]
+	pcs.pcsAddrIdx = (pcs.pcsAddrIdx + 1) % len(pcs.pcsAddrList)
+	return addr
 }
 
 // URL 返回 url
