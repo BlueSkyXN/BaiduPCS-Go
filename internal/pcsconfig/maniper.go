@@ -14,6 +14,11 @@ const (
 	opGet    = "get"
 )
 
+var (
+	// pcsAddrRegexp matches valid PCS server addresses like pcs.baidu.com, c.pcs.baidu.com, c3.pcs.baidu.com, d.pcs.baidu.com
+	pcsAddrRegexp = regexp.MustCompile("^([cd]\\d?\\.)?pcs\\.baidu\\.com$")
+)
+
 func (c *PCSConfig) manipUser(op string, baiduBase *BaiduBase) (*Baidu, error) {
 	// empty baiduBase
 	if baiduBase == nil || (baiduBase.UID == 0 && baiduBase.Name == "") {
@@ -244,8 +249,7 @@ func (c *PCSConfig) SetPCSAddrList(pcsAddrList string) bool {
 		if addr == "" {
 			continue
 		}
-		match, _ := regexp.MatchString("^([cd]\\d?\\.)?pcs\\.baidu\\.com", addr)
-		if !match {
+		if !pcsAddrRegexp.MatchString(addr) {
 			return false
 		}
 		validAddrs = append(validAddrs, addr)

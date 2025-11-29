@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs/expires/cachemap"
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs/internal/panhome"
@@ -146,7 +147,7 @@ type (
 		pcsUA       string
 		pcsAddr     string
 		pcsAddrList []string // PCS服务器列表
-		pcsAddrIdx  int      // 当前PCS服务器索引(用于轮询)
+		pcsAddrIdx  uint32   // 当前PCS服务器索引(用于轮询, 使用atomic操作保证线程安全)
 		panUA       string
 		isSetPanUA  bool
 		fixPCSAddr  bool
@@ -389,7 +390,7 @@ func (pcs *BaiduPCS) SetStaticPCSAddr(static bool) {
 func (pcs *BaiduPCS) SetPCSAddrList(addrList string) {
 	if addrList == "" {
 		pcs.pcsAddrList = nil
-		pcs.pcsAddrIdx = 0
+		atomic.StoreUint32(&pcs.pcsAddrIdx, 0)
 		return
 	}
 	addrs := strings.Split(addrList, ",")
@@ -401,17 +402,18 @@ func (pcs *BaiduPCS) SetPCSAddrList(addrList string) {
 		}
 	}
 	pcs.pcsAddrList = validAddrs
-	pcs.pcsAddrIdx = 0
+	atomic.StoreUint32(&pcs.pcsAddrIdx, 0)
 }
 
 // GetNextPCSHostFromList 从PCS服务器列表中轮询获取下一个地址
 func (pcs *BaiduPCS) GetNextPCSHostFromList() string {
-	if len(pcs.pcsAddrList) == 0 {
+	listLen := len(pcs.pcsAddrList)
+	if listLen == 0 {
 		return ""
 	}
-	addr := pcs.pcsAddrList[pcs.pcsAddrIdx]
-	pcs.pcsAddrIdx = (pcs.pcsAddrIdx + 1) % len(pcs.pcsAddrList)
-	return addr
+	// 使用原子操作获取并递增索引
+	idx := atomic.AddUint32(&pcs.pcsAddrIdx, 1) - 1
+	return pcs.pcsAddrList[idx%uint32(listLen)]
 }
 
 // URL 返回 url
