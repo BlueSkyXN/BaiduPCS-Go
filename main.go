@@ -1813,6 +1813,13 @@ func main() {
 								return nil
 							}
 						}
+						if c.IsSet("pcs_addr_list") {
+							match := pcsconfig.Config.SetPCSAddrList(c.String("pcs_addr_list"))
+							if !match {
+								fmt.Println("设置 pcs_addr_list 错误: pcs服务器地址列表中存在不合法的地址")
+								return nil
+							}
+						}
 						if c.IsSet("fix_pcs_addr") {
 							pcsconfig.Config.SetStaticPCSAddr(c.Bool("fix_pcs_addr"))
 						}
@@ -1947,6 +1954,10 @@ func main() {
 						cli.StringFlag{
 							Name:  "pcs_addr",
 							Usage: "PCS 服务器地址",
+						},
+						cli.StringFlag{
+							Name:  "pcs_addr_list",
+							Usage: "PCS 服务器地址列表(逗号分隔), 多个地址时启用轮询",
 						},
 						cli.BoolFlag{
 							Name:  "fix_pcs_addr",

@@ -14,6 +14,11 @@ const (
 	opGet    = "get"
 )
 
+var (
+	// pcsAddrRegexp matches valid PCS server addresses like pcs.baidu.com, c.pcs.baidu.com, c3.pcs.baidu.com, d.pcs.baidu.com
+	pcsAddrRegexp = regexp.MustCompile("^([cd]\\d?\\.)?pcs\\.baidu\\.com$")
+)
+
 func (c *PCSConfig) manipUser(op string, baiduBase *BaiduBase) (*Baidu, error) {
 	// empty baiduBase
 	if baiduBase == nil || (baiduBase.UID == 0 && baiduBase.Name == "") {
@@ -222,6 +227,39 @@ func (c *PCSConfig) SetStaticPCSAddr(static bool) {
 	if c.pcs != nil {
 		c.pcs.SetStaticPCSAddr(static)
 	}
+}
+
+// SetPCSAddrList 设置 PCS 服务器列表
+func (c *PCSConfig) SetPCSAddrList(pcsAddrList string) bool {
+	// 清理空白字符
+	pcsAddrList = strings.ReplaceAll(pcsAddrList, " ", "")
+	if pcsAddrList == "" {
+		c.PCSAddrList = ""
+		if c.pcs != nil {
+			c.pcs.SetPCSAddrList("")
+		}
+		return true
+	}
+
+	// 验证每个地址是否合法
+	addrs := strings.Split(pcsAddrList, ",")
+	validAddrs := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue
+		}
+		if !pcsAddrRegexp.MatchString(addr) {
+			return false
+		}
+		validAddrs = append(validAddrs, addr)
+	}
+
+	c.PCSAddrList = strings.Join(validAddrs, ",")
+	if c.pcs != nil {
+		c.pcs.SetPCSAddrList(c.PCSAddrList)
+	}
+	return true
 }
 
 // SetEnableHTTPS 设置是否启用https
