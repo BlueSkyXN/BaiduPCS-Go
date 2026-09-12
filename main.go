@@ -55,7 +55,7 @@ const (
 
 var (
 	// Version 版本号
-	Version = "v4.0.0-stable"
+	Version = "v4.0.2-dev"
 
 	historyFilePath = filepath.Join(pcsconfig.GetConfigDir(), "pcs_command_history.txt")
 	reloadFn        = func(c *cli.Context) error {
@@ -1211,13 +1211,16 @@ func main() {
 				}
 
 				subArgs := c.Args()
-				pcscommand.RunUpload(subArgs[:c.NArg()-1], subArgs[c.NArg()-1], &pcscommand.UploadOptions{
+				err := pcscommand.RunUpload(subArgs[:c.NArg()-1], subArgs[c.NArg()-1], &pcscommand.UploadOptions{
 					Parallel:      c.Int("p"),
 					MaxRetry:      c.Int("retry"),
 					Load:          c.Int("l"),
 					NoRapidUpload: c.Bool("norapid"),
 					Policy:        c.String("policy"),
 				})
+				if err != nil {
+					return cli.NewExitError(err.Error(), 1)
+				}
 				return nil
 			},
 			Flags: []cli.Flag{
@@ -1354,6 +1357,7 @@ func main() {
 					Download: c.Bool("download"),
 					Collect:  c.Bool("collect"),
 					Rname:    c.Bool("rname"),
+					FsID:     c.String("fs_id"),
 				}
 				pcscommand.RunShareTransfer(c.Args(), opt)
 				return nil
@@ -1370,6 +1374,10 @@ func main() {
 				cli.BoolFlag{
 					Name:  "rname",
 					Usage: "秒传随机替换4位文件名提高成功率",
+				},
+				cli.StringFlag{
+					Name:  "fs_id",
+					Usage: "指定特定fs_id进行转存(用于绕过大文件夹数量限制)",
 				},
 			},
 		},

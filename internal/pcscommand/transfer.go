@@ -5,6 +5,7 @@ import (
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,16 @@ import (
 // RunShareTransfer 执行分享链接转存到网盘
 func RunShareTransfer(params []string, opt *baidupcs.TransferOption) {
 	var link = params[0]
+	// 支持整段分享文本(如 "通过网盘分享的文件: 链接: https://... 提取码: xxxx ..."),
+	// 先从中提取出规范的分享链接, 再交给 net/url 解析
+	if shareLinkRe := regexp.MustCompile(`(https?://pan\.baidu\.com/s/[0-9A-Za-z_-]+)(?:\?pwd=([0-9A-Za-z]{4}))?`); shareLinkRe.MatchString(link) {
+		if m := shareLinkRe.FindStringSubmatch(link); len(m) >= 2 {
+			link = m[1]
+			if len(params) == 1 && len(m) == 3 && m[2] != "" {
+				params = append(params, m[2])
+			}
+		}
+	}
 	parsedURL, err := url.Parse(link)
 	if err != nil {
 		fmt.Printf("%s失败: %s\n", baidupcs.OperationShareFileSavetoLocal, "链接格式非法")
@@ -84,6 +95,14 @@ func RunShareTransfer(params []string, opt *baidupcs.TransferOption) {
 		fmt.Printf("%s失败: %s\n", baidupcs.OperationShareFileSavetoLocal, transMetas["ErrMsg"])
 		return
 	}
+
+	// 如果指定了 fs_id, 覆盖解析结果
+	if opt.FsID != "" {
+		transMetas["fs_id"] = "[" + opt.FsID + "]"
+		transMetas["filename"] = "user_specified_file" // 名字可能不准确，但不影响转存
+		transMetas["item_num"] = "1"
+	}
+
 	transMetas["path"] = GetActiveUser().Workdir
 	if transMetas["item_num"] != "1" && opt.Collect {
 		transMetas["filename"] += "等文件"

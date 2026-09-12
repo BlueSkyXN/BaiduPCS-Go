@@ -29,8 +29,9 @@ Build() {
   echo "Building $1..."
   export GOOS=$2 GOARCH=$3 GO386=sse2 CGO_ENABLED=0 GOARM=$4
   if [ $2 = "windows" ]; then
-    goversioninfo -o=resource_windows_386.syso
-    goversioninfo -64 -o=resource_windows_amd64.syso
+    if command -v goversioninfo >/dev/null 2>&1; then
+      goversioninfo -platform-specific
+    fi
     $go build -ldflags "-X main.Version=$version -s -w" -o "$output/$1/$name.exe"
     RicePack $1 $name.exe
   else
@@ -88,8 +89,6 @@ RicePack() {
   rice -i github.com/qjfoidnh/BaiduPCS-Go/internal/pcsweb append --exec "$output/$1/$2"
 }
 
-touch ./vendor/golang.org/x/sys/windows/windows.s
-
 # Android
 #export NDK_INSTALL=$ANDROID_NDK_ROOT/bin
 # CC=$NDK_INSTALL/arm-linux-androideabi-4.9/bin/arm-linux-androideabi-gcc AndroidBuild $name-$version"-android-16-armv5" android arm 5
@@ -110,7 +109,7 @@ Build $name-$version"-darwin-osx-arm64" darwin arm64
 # Windows
 Build $name-$version"-windows-x86" windows 386
 Build $name-$version"-windows-x64" windows amd64
-Build $name-$version"-windows-arm" windows arm
+Build $name-$version"-windows-arm64" windows arm64
 
 # Linux
 Build $name-$version"-linux-386" linux 386

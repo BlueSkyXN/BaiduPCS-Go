@@ -11,9 +11,11 @@ import (
 	"github.com/qjfoidnh/BaiduPCS-Go/pcsutil/converter"
 	"github.com/qjfoidnh/BaiduPCS-Go/pcsutil/taskframework"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 const (
@@ -41,8 +43,15 @@ func uploadPrintFormat(load int) string {
 	return "[%s] ↑ %s/%s %s/s in %s ...\n"
 }
 
+func uploadFailureError(failed int) error {
+	if failed == 0 {
+		return nil
+	}
+	return fmt.Errorf("上传失败文件数: %d", failed)
+}
+
 // RunUpload 执行文件上传
-func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
+func RunUpload(localPaths []string, savePath string, opt *UploadOptions) error {
 	if opt == nil {
 		opt = &UploadOptions{}
 	}
@@ -68,20 +77,18 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 
 	err := matchPathByShellPatternOnce(&savePath)
 	if err != nil {
-		fmt.Printf("警告: 上传文件, 获取网盘路径 %s 错误, %s\n", savePath, err)
+		return fmt.Errorf("上传文件, 获取网盘路径 %s 错误: %w", savePath, err)
 	}
 
 	switch len(localPaths) {
 	case 0:
-		fmt.Printf("本地路径为空\n")
-		return
+		return fmt.Errorf("本地路径为空")
 	}
 
 	// 打开上传状态
 	uploadDatabase, err := pcsupload.NewUploadingDatabase()
 	if err != nil {
-		fmt.Printf("打开上传未完成数据库错误: %s\n", err)
-		return
+		return fmt.Errorf("打开上传未完成数据库错误: %w", err)
 	}
 	defer uploadDatabase.Close()
 
@@ -95,6 +102,20 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 		// 统计
 		statistic = &pcsupload.UploadStatistic{}
 	)
+
+	// 优雅退出: 第一次 Ctrl+C 停止派发新任务并等待进行中的分片完成后保存进度, 第二次 Ctrl+C 强制退出
+	sigChan := make(chan os.Signal, 2)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\n收到退出信号, 等待进行中的分片完成 (再次 Ctrl+C 强制退出)...")
+		executor.Stop()
+		pcsupload.GracefulStopActiveUploaders()
+		<-sigChan
+		fmt.Println("强制退出")
+		os.Exit(130)
+	}()
+
 	fmt.Print("\n")
 	fmt.Printf("[0] 提示: 当前上传单个文件最大并发量为: %d, 最大同时上传文件数为: %d\n", opt.Parallel, opt.Load)
 
@@ -105,8 +126,7 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 	for k := range localPaths {
 		walkedFiles, err := pcsutil.WalkDir(localPaths[k], "")
 		if err != nil {
-			fmt.Printf("警告: 遍历错误: %s\n", err)
-			continue
+			return fmt.Errorf("遍历本地路径 %s 错误: %w", localPaths[k], err)
 		}
 
 		for k3 := range walkedFiles {
@@ -128,14 +148,13 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 			}
 			subSavePath = strings.TrimPrefix(walkedFiles[k3], localPathDir)
 			if !opt.NoFilenameCheck && !pcsutil.ChPathLegal(walkedFiles[k3]) {
-				fmt.Printf("[0] %s 文件路径含有非法字符，已跳过!\n", walkedFiles[k3])
-				continue
+				return fmt.Errorf("%s 文件路径含有非法字符", walkedFiles[k3])
 			}
 			LoadCount++
 			info := executor.Append(&pcsupload.UploadTaskUnit{
 				LocalFileChecksum: checksum.NewLocalFileChecksum(walkedFiles[k3], int(baidupcs.SliceMD5Size)),
 				SavePath:          path.Clean(savePath + baidupcs.PathSeparator + subSavePath),
-				PCS:               pcs,
+				PCS:               pcs.CopyPCS(),
 				UploadingDatabase: uploadDatabase,
 				Parallel:          opt.Parallel,
 				PrintFormat:       uploadPrintFormat(opt.Load),
@@ -153,8 +172,7 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 
 	// 没有添加任何任务
 	if executor.Count() == 0 {
-		fmt.Printf("未检测到上传的文件.\n")
-		return
+		return fmt.Errorf("未检测到上传的文件")
 	}
 
 	// 设置上传文件并发数
@@ -167,7 +185,8 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 
 	// 输出上传失败的文件列表
 	failedList := executor.FailedDeque()
-	if failedList.Size() != 0 {
+	failedCount := failedList.Size()
+	if failedCount != 0 {
 		fmt.Printf("以下文件上传失败: \n")
 		tb := pcstable.NewTable(os.Stdout)
 		for e := failedList.Shift(); e != nil; e = failedList.Shift() {
@@ -176,4 +195,5 @@ func RunUpload(localPaths []string, savePath string, opt *UploadOptions) {
 		}
 		tb.Render()
 	}
+	return uploadFailureError(failedCount)
 }
