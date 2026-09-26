@@ -945,6 +945,20 @@ d.pcs.baidu.com
 ```
 v3.9.8后上传时支持动态获取pcs服务器, 理论上不需要手动配置. 如希望使用静态pcs服务器, 可配置打开`fix_pcs_addr`
 
+本分支新增 `pcs_addr_list` 配置项, 可指定多个PCS服务器地址, 上传时在列表中轮询使用, 将上传流量分摊到多个接入点:
+
+```
+BaiduPCS-Go config set -pcs_addr_list "c.pcs.baidu.com,d.pcs.baidu.com,c3.pcs.baidu.com"
+```
+
+说明:
+
+- 仅对**上传**的分片请求生效, 下载及其他API仍使用 `pcs_addr` 单地址;
+- 列表中需配置 **2 个及以上**地址才会启用轮询, 只配 1 个或留空时走原有逻辑(动态获取或 `fix_pcs_addr`);
+- 仅接受官方PCS域名(如 `pcs.baidu.com`, `c.pcs.baidu.com`, `d.pcs.baidu.com` 等), 配置其他地址会被拒绝;
+- 启用轮询后, 上传不再请求动态服务器列表, `fix_pcs_addr` 也不再影响上传;
+- 每上传 256 个分片自动切换到列表中的下一个地址, 每个文件任务独立轮询.
+
 `cache_size` 的值支持可选设置单位了, 单位不区分大小写, `b` 和 `B` 均表示字节的意思, 如 `64KB`, `1MB`, `32kb`, `65536b`, `65536`.
 
 `max_download_rate`, `max_upload_rate` 的值支持可选设置单位了, 单位为每秒的传输速率, 后缀`/s` 可省略, 如 `2MB/s`, `2MB`, `2m`, `2mb` 均为一个意思.
