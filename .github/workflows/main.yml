@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
+    branches: ['**'] # 不含 tag 推送, 避免重复触发
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   BINARY_PREFIX: "baidupcs-go_"
@@ -12,8 +17,21 @@ env:
   LD_FLAGS: "-w -s"
 
 jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run unit tests
+        run: go test ./...
+
   build:
     name: Build binary CI
+    needs: test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -30,6 +48,8 @@ jobs:
       fail-fast: true
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉全历史, 供 git describe 生成版本号
       - name: Setup Go environment
         uses: actions/setup-go@v5
         with:
@@ -51,6 +71,7 @@ jobs:
           if $IS_PR ; then echo $PR_PROMPT; fi
           export BINARY_NAME="$BINARY_PREFIX$GOOS_$GOARCH$BINARY_SUFFIX"
           export CGO_ENABLED=0
+          export LD_FLAGS="$LD_FLAGS -X main.Version=$(git describe --tags --always)"
           go build -o "output/$BINARY_NAME" -trimpath -ldflags "$LD_FLAGS" .
       - name: Upload artifact
         uses: actions/upload-artifact@v4
