@@ -194,10 +194,17 @@ func dialContext(ctx context.Context, network, address string) (conn net.Conn, e
 			return nil, err
 		}
 
-		return net.DialTCP(network, getLocalTCPAddr(), &net.TCPAddr{
+		conn, dialErr := net.DialTCP(network, getLocalTCPAddr(), &net.TCPAddr{
 			IP:   data.Data().(net.IP),
 			Port: port, // 设置端口
 		})
+		if dialErr != nil {
+			// 拨号失败: 丢弃该 host 的 DNS 缓存并强制刷新解析器,
+			// 下次连接重新解析, 避免钉死在已失效的 IP 上
+			tcpCache.Delete(host)
+			dnsResolver.Refresh(true)
+		}
+		return conn, dialErr
 	}
 
 	// 非 tcp 请求
