@@ -380,6 +380,8 @@ func (pcs *BaiduPCS) CopyPCS() *BaiduPCS {
 		accessToken: pcs.accessToken,
 		pcsUA:       pcs.pcsUA,
 		pcsAddr:     pcs.pcsAddr,
+		pcsAddrList: pcs.pcsAddrList,
+		pcsAddrIdx:  pcs.pcsAddrIdx,
 		panUA:       pcs.panUA,
 		isSetPanUA:  pcs.isSetPanUA,
 		fixPCSAddr:  pcs.fixPCSAddr,
