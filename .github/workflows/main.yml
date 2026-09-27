@@ -26,6 +26,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: false # 模块缓存统一由下方 actions/cache 策略处理, 避免重复缓存
       - name: Run unit tests
         run: go test ./...
 
@@ -54,13 +55,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Cache downloaded module
+          cache: false
+      - name: Cache build cache
+        # 只缓存 ~/.cache/go-build。不要把 ~/go/pkg/mod 加进来: 模块缓存的只读目录
+        # 结构经 tar 打包/恢复会产生大量 "Cannot open: File exists" 错误(恢复失败),
+        # 模块冷下载仅十几秒, 不值得缓存
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.goos }}-${{ matrix.goarch }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-gobuild-${{ matrix.goos }}-${{ matrix.goarch }}-${{ hashFiles('**/go.sum') }}
       - name: Build binary file
         env:
           GOOS: ${{ matrix.goos }}
