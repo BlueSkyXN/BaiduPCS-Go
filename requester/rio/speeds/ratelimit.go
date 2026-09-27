@@ -13,6 +13,7 @@ type (
 		count           int64
 		interval        time.Duration
 		ticker          *time.Ticker
+		mu              sync.Mutex
 		muChan          chan struct{}
 		closeChan       chan struct{}
 		backServiceOnce sync.Once
@@ -49,10 +50,12 @@ func (rl *RateLimit) Stop() {
 }
 
 func (rl *RateLimit) resetChan() {
+	rl.mu.Lock()
 	if rl.muChan != nil {
 		close(rl.muChan)
 	}
 	rl.muChan = make(chan struct{})
+	rl.mu.Unlock()
 }
 
 func (rl *RateLimit) backService() {
@@ -79,8 +82,12 @@ func (rl *RateLimit) Add(count int64) {
 	rl.backServiceOnce.Do(rl.backService)
 	for {
 		if atomic.LoadInt64(&rl.count) >= rl.MaxRate { // 超出最大限额
-			// 阻塞
-			<-rl.muChan
+			// 锁内快照等待通道, 锁外阻塞等待(避免与 resetChan 互相等锁),
+			// 通道被周期性 close 后放行重查
+			rl.mu.Lock()
+			ch := rl.muChan
+			rl.mu.Unlock()
+			<-ch
 			continue
 		}
 		atomic.AddInt64(&rl.count, count)

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/qjfoidnh/BaiduPCS-Go/baidupcs/expires/cachemap"
@@ -152,7 +153,7 @@ type (
 		isSetPanUA  bool
 		fixPCSAddr  bool
 		ph          *panhome.PanHome
-		cacheOpMap  cachemap.CacheOpMap
+		cacheOpMap  *cachemap.CacheOpMap
 	}
 
 	userInfoJSON struct {
@@ -308,6 +309,8 @@ func (pcs *BaiduPCS) GetBAIDUID() (baiduid string) {
 }
 
 func (pcs *BaiduPCS) GetPCSAddr() string {
+	pcsAddrMu.RLock()
+	defer pcsAddrMu.RUnlock()
 	return pcs.pcsAddr
 }
 
@@ -364,14 +367,33 @@ func (pcs *BaiduPCS) SetPCSUserAgent(ua string) {
 	pcs.pcsUA = ua
 }
 
+// pcsAddrMu 保护 pcsAddr 的读写: 上传期间后台 goroutine 会切换 pcsAddr,
+// 而其他分片 worker 正并发读取它构造请求 URL
+var pcsAddrMu sync.RWMutex
+
+// opMap 返回可用的缓存池。字段为指针以避免 CopyPCS 按值复制内嵌的
+// sync.Map(vet copylocks), 零值实例在此懒初始化
+func (pcs *BaiduPCS) opMap() *cachemap.CacheOpMap {
+	if pcs.cacheOpMap == nil {
+		pcs.cacheOpMap = &cachemap.CacheOpMap{}
+	}
+	return pcs.cacheOpMap
+}
+
 // SetPCSAddr 设置 PCS 服务器地址
 func (pcs *BaiduPCS) SetPCSAddr(addr string) {
 	if addr != "" {
+		pcsAddrMu.Lock()
 		pcs.pcsAddr = addr
+		pcsAddrMu.Unlock()
 	}
 }
 
 func (pcs *BaiduPCS) CopyPCS() *BaiduPCS {
+	pcsAddrMu.RLock()
+	pcsAddr := pcs.pcsAddr
+	pcsAddrList := pcs.pcsAddrList
+	pcsAddrMu.RUnlock()
 	return &BaiduPCS{
 		appID:       pcs.appID,
 		isHTTPS:     pcs.isHTTPS,
@@ -379,9 +401,9 @@ func (pcs *BaiduPCS) CopyPCS() *BaiduPCS {
 		client:      pcs.client,
 		accessToken: pcs.accessToken,
 		pcsUA:       pcs.pcsUA,
-		pcsAddr:     pcs.pcsAddr,
-		pcsAddrList: pcs.pcsAddrList,
-		pcsAddrIdx:  pcs.pcsAddrIdx,
+		pcsAddr:     pcsAddr,
+		pcsAddrList: pcsAddrList,
+		pcsAddrIdx:  atomic.LoadUint32(&pcs.pcsAddrIdx),
 		panUA:       pcs.panUA,
 		isSetPanUA:  pcs.isSetPanUA,
 		fixPCSAddr:  pcs.fixPCSAddr,
@@ -437,7 +459,9 @@ func (pcs *BaiduPCS) GetNextPCSHostFromList() string {
 
 // URL 返回 url
 func (pcs *BaiduPCS) URL() *url.URL {
+	pcsAddrMu.RLock()
 	host := pcs.pcsAddr
+	pcsAddrMu.RUnlock()
 	if host == "" {
 		host = PCSBaiduCom
 	}

@@ -1,6 +1,9 @@
 package baidupcs
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 // 上传任务使用 CopyPCS() 的副本执行, 副本必须保留 pcs_addr_list,
 // 否则轮询会静默回退到动态服务器逻辑
@@ -37,4 +40,24 @@ func TestSetPCSAddrListInvalid(t *testing.T) {
 	if pcs.pcsAddrList != nil || pcs.GetNextPCSHostFromList() != "" {
 		t.Fatal("清空列表失败")
 	}
+}
+
+// 上传期间后台 goroutine 会切换 pcsAddr, 其他分片 worker 并发读取它构造 URL,
+// 必须无数据竞争 (go test -race 下验证)
+func TestPCSAddrConcurrentAccess(t *testing.T) {
+	pcs := NewPCS(266719, "")
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			pcs.SetPCSAddr("d.pcs.baidu.com")
+		}()
+		go func() {
+			defer wg.Done()
+			_ = pcs.URL().Host
+			_ = pcs.GetPCSAddr()
+		}()
+	}
+	wg.Wait()
 }

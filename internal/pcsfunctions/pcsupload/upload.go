@@ -25,18 +25,19 @@ type (
 	}
 )
 
-var (
-    uploadClient     *requester.HTTPClient
-    uploadClientOnce sync.Once
-)
+// uploadClients 按 cookie jar(即按账号)缓存上传客户端, 避免单例客户端
+// 把第一个请求者的 cookie jar 钉死给所有账号
+var uploadClients sync.Map // http.CookieJar -> *requester.HTTPClient
 
 func getUploadClient(jar http.CookieJar) *requester.HTTPClient {
-    uploadClientOnce.Do(func() {
-        uploadClient = pcsconfig.Config.PCSHTTPClient()
-        uploadClient.SetCookiejar(jar)
-        uploadClient.SetTimeout(200 * time.Second)
-    })
-    return uploadClient
+	if c, ok := uploadClients.Load(jar); ok {
+		return c.(*requester.HTTPClient)
+	}
+	cli := pcsconfig.Config.PCSHTTPClient()
+	cli.SetCookiejar(jar)
+	cli.SetTimeout(200 * time.Second)
+	actual, _ := uploadClients.LoadOrStore(jar, cli)
+	return actual.(*requester.HTTPClient)
 }
 
 var pcsPeriod = 256 // 上传多少个分片更换一次pcsHost

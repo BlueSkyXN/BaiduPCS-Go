@@ -28,7 +28,7 @@ jobs:
           go-version-file: go.mod
           cache: false # 模块缓存统一由下方 actions/cache 策略处理, 避免重复缓存
       - name: Run unit tests
-        run: go test ./...
+        run: go test -race ./...
 
   build:
     name: Build binary CI
