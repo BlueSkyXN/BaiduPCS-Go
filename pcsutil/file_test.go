@@ -7,7 +7,7 @@ import (
 )
 
 func TestWalkDir(t *testing.T) {
-	files, err := pcsutil.WalkDir("/Users/syy/tmp", "")
+	files, err := pcsutil.WalkDir(t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}

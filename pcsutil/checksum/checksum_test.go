@@ -32,9 +32,9 @@ func TestChecksum(t *testing.T) {
 		printFileMeta(&lf.LocalFileMeta)
 	}
 
-	fmt.Println("--- /Users/syy/go/src/github.com/qjfoidnh/BaiduPCS-Go/BaiduPCS-Go")
+	fmt.Println("--- checksum_test.go (non-default buffer size)")
 	for _, flag := range flagList {
-		lf := checksum.NewLocalFileChecksumWithBufSize("/Users/syy/go/src/github.com/qjfoidnh/BaiduPCS-Go/BaiduPCS-Go", checksum.DefaultBufSize-3, checksum.DefaultBufSize)
+		lf := checksum.NewLocalFileChecksumWithBufSize("checksum_test.go", checksum.DefaultBufSize-3, checksum.DefaultBufSize)
 		err := lf.OpenPath()
 		if err != nil {
 			t.Fatal(err)
